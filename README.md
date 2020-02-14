@@ -1,2 +1,3 @@
 # Computational-Physics
-Research work
+## Research work
+1-d and 2-d Acoustics problem
