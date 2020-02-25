@@ -18,13 +18,13 @@ void init(void);
 
 void singleStep(void);
 
-void omega(double **P_c, double **U_c, int iy, int ix, int axis);
+void omega(double **P_c, double **U_c, double *W, int iy, int ix, int axis);
 
-void domega(double **dP_c, double **dU_c, int iy, int ix, int axis);
+void domega(double **dP_c, double **dU_c, double *dW, int iy, int ix, int axis);
 
-void reconstruct(int iy, int ix);
+void reconstruct(double *W, double *dW, double *Wn, double *dWn, int iy, int ix);
 
-void backward(double **Pn, double **Un, double **dPn, double **dUn, int iy, int ix);
+void backward(double **Pn, double **Un, double **dPn, double **dUn, double *Wn, double *dWn, int iy, int ix);
 
 void update(void);
 

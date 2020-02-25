@@ -3,10 +3,13 @@
 #include <stdio.h>
 #include <cmath>
 #include <stdlib.h>
+#include <omp.h>
 
 #include "acoustic2d_ext.h"
 
-int Nx = 200, Ny = 200;
+#define grid (100)
+
+int Nx = grid, Ny = grid;
 
 #define LENGTHx 2.0
 #define LENGTHy 2.0
@@ -21,73 +24,91 @@ int Nx = 200, Ny = 200;
 #define S 1
 //int stencil_l[S + 1] = { -1, 0 };
 //int stencil_r[S + 1] = { 0, 1 };
-double stencil_values_w1[S + 1];
-double stencil_values_w2[S + 1];
-double stencil_Dvalues_w1[S + 1];
-double stencil_Dvalues_w2[S + 1];
 
-double Wpls[2], Wmns[2], dWpls[2], dWmns[2];
+//double Wpls[2], Wmns[2], dWpls[2], dWmns[2];
 // Wn[2],dWn[2] = {W_left, W_right}
-double Wn[2], dWn[2];
+//double Wn[2], dWn[2];
 
 #define LEFT 0
 #define RIGHT 1
 //
 
-#define M (2*((Nx * 0.45 * hx / 2.0) / C[0][0] + (Nx * 0.5 * hx / 2.0) / C[Nx - 1][Nx - 1]) / taux)
+#define M (2.0 * (Nx * 0.4 * hx / 2.0) / C[0][0] / taux)
 //#define M 0.0
 
 
 #define eps 1E-6
 double func(double x, double y) {
 	
-	if (-0.7 - x <= eps && -0.2 - x >= eps){
-		return 1.0 * pow(sin(2.0 * M_PI *(x - 0.3)), 4.0);
+	if (-0.4 - x <= eps && 0.1 - x >= eps){
+		return 1.0 * pow(sin(2.0 * M_PI *(x - 0.6)), 4.0);
 	}
 	else {
 		return 0;
 	}
 	
+	//return exp(-100 * (x)*(x)) * exp(-100 * (y)*(y));
 	//return exp(-100 * (x + 0.5)*(x + 0.5));
 	//return 0.0;
 }
 
-double dfunc(double x, double y) {
+double func_x(double x, double y) {
 	
-	if (-0.7 - x <= eps && -0.2 - x >= eps){
-		return 8.0 * M_PI * pow(sin(2.0 * M_PI *(x - 0.3)), 3.0) * cos(2.0 * M_PI *(x - 0.3));
+	if (-0.4 - x <= eps && 0.1 - x >= eps){
+		return 8.0 * M_PI * pow(sin(2.0 * M_PI *(x - 0.6)), 3.0) * cos(2.0 * M_PI *(x - 0.6));
 	}
 	else {
 		return 0;
 	}
 	
-	//return -200 * (x + 0.5) * exp(-100 * (x + 0.5)*(x + 0.5));
+	//return -200 * (x) * exp(-100 * (x)*(x)) * exp(-100 * (y)*(y));
 	//return 0.0;
 }
 
+double func_y(double x, double y) {
+	return -200 * (y) * exp(-100 * (x)*(x)) * exp(-100 * (y)*(y));
+}
+
+double func_xy(double x, double y) {
+	return 40000 * (x) * (y) * exp(-100 * (x)*(x)) * exp(-100 * (y)*(y));
+}
+
 int main() {
-	unsigned int step, del;
 	char str[20], strCIR[20];
-	del = 25;
+	double time;
+	int number_of_processes = 0;
+	int del = 25;
+
 	printf("start\n");
-
-	for (Nx = 200, Ny = 200; Nx <= 201; Nx = Nx * 2, Ny = Ny * 2) {
-		createArrays();
-		printf("Arrays created\n");
-		init();
-		printf("initialized\n");
-
-		printf("%d\t%lf\t%f\t%lf\t%lf\n", Nx, hx, 1.0 / hx, taux, M);
-		for (step = 0; step < M; step++) {
-			if (step % 100 == 0) printf("%d\n", step);
-			
-			if ((step % del) == 0) {
-				sprintf(str, "gif/P%d.dat", step / del + 1);
-				sprintf(strCIR, "gif/U%d.dat", step / del + 1);
-				debugGnuplotFileName(str, strCIR);
+	for (Nx = grid, Ny = grid; Nx <= 400 + 1; Nx = Nx * 2, Ny = Ny * 2) {
+#pragma omp parallel
+		{
+			int step = 0;
+#pragma omp single
+			{
+				time = omp_get_wtime();
+				createArrays();
+				printf("Arrays created\n");
+				init();
+				printf("initialized\n");
+				printf("%d\t%lf\t%f\t%lf\t%lf\n", Nx, hx, 1.0 / hx, taux, M);
+				number_of_processes = omp_get_num_threads();
+				//printf("%d\t", number_of_processes);
 			}
-			
-			singleStep();
+			for (step = 0; step < M; step++) {
+#pragma omp single
+				{
+					if (step % 100 == 0) printf("%d\n", step);
+					/*
+					if ((step % del) == 0) {
+						sprintf(str, "gif/P%d.dat", step / del + 1);
+						sprintf(strCIR, "gif/U%d.dat", step / del + 1);
+						debugGnuplotFileName(str, strCIR);
+					}
+					*/
+				}
+				singleStep();
+			}
 		}
 		
 		sprintf(str, "gif/P%d.dat", (int)M / del + 1);
@@ -99,6 +120,8 @@ int main() {
 		debugGnuplotFileName(str, strCIR);
 
 		freeArrays();
+		time = (omp_get_wtime() - time);
+		printf("Concurrent OpenMP calculation with %d threads took %f seconds.\n", number_of_processes, time);
 	}
 	return 0;
 }
@@ -116,22 +139,22 @@ void init(void) {
 			// nodes
 			P_c[iy][ix] = func(x, y);
 			U_c[iy][ix] = P_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
-			V_c[iy][ix] = 0.0;// P_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
+			V_c[iy][ix] = P_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
 			V_n[iy][ix] = V_c[iy][ix];
 
-			Px_c[iy][ix] = dfunc(x, y);
-			Ux_c[iy][ix] = Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
+			Px_c[iy][ix] = func_x(x, y);
+			Ux_c[iy][ix] = 0.0;// Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
 			Vx_c[iy][ix] = 0.0;//Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
 			Vx_n[iy][ix] = Vx_c[iy][ix];
 
-			Py_c[iy][ix] = 0.0;// dfunc(x, y) / Ro[iy][ix];
-			Uy_c[iy][ix] = 0.0;// Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
-			Vy_c[iy][ix] = 0.0;//Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
+			Py_c[iy][ix] = 0.0;//func_y(x, y);
+			Uy_c[iy][ix] = 0.0;//Py_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
+			Vy_c[iy][ix] = 0.0;//Py_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
 			Vy_n[iy][ix] = Vy_c[iy][ix];
 
-			Pxy_c[iy][ix] = 0.0;// dfunc(x, y) / Ro[iy][ix];
-			Uxy_c[iy][ix] = 0.0;// Px_c[iy][ix] * C[iy][ix] * Ro[iy][ix];
-			Vxy_c[iy][ix] = 0.0;// Px_c[iy][ix] * C[iy][ix] * Ro[iy][ix];
+			Pxy_c[iy][ix] = 0.0;//func_xy(x, y);
+			Uxy_c[iy][ix] = 0.0;//Pxy_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
+			Vxy_c[iy][ix] = 0.0;//Pxy_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
 			Vxy_n[iy][ix] = Vxy_c[iy][ix];
 
 			//printf("%lf\t%lf\t%lf\n", x, dP_c[ind], dU_c[ind]);
@@ -148,44 +171,69 @@ void init(void) {
 #define AXIS_Y 1
 void singleStep(void) {
 	int ix, iy;
-	
-	// X-step
-	for (iy = 0; iy < Ny; iy++) {
-		for (ix = 0; ix < Nx; ix++) {
-			// return $Wpls, $Wmns
-			omega(P_c, U_c, iy, ix, AXIS_X);
-			// return $dWpls, $dWmns
-			domega(Px_c, Ux_c, iy, ix, AXIS_X);
-			// return $Wn, $dWn
-			reconstruct(iy, ix);
-			// return $Pn, $Un, $dPn, $dUn
-			backward(P_n, U_n, Px_n, Ux_n, iy, ix);
+	int start = omp_get_thread_num();
+	int stride = omp_get_num_threads();
+	double *W, *dW;
+	double *Wn, *dWn;
+	// W[4] = {Wpls[0], Wpls[1], Wmns[0], Wmns[1]}
+	W = (double *)malloc(4 * sizeof(double));
+	// dW[4] = {dWpls[0], dWpls[1], dWmns[0], dWmns[1]}
+	dW = (double *)malloc(4 * sizeof(double));
 
-			omega(Py_c, Uy_c, iy, ix, AXIS_X);
-			domega(Pxy_c, Uxy_c, iy, ix, AXIS_X);
-			reconstruct(iy, ix);
-			backward(Py_n, Uy_n, Pxy_n, Uxy_n, iy, ix);
+	Wn = (double *)malloc(2 * sizeof(double));
+	dWn = (double *)malloc(2 * sizeof(double));
+
+	// X-step
+#pragma omp barrier
+	for (iy = start; iy < Ny; iy += stride) {
+		for (ix = 0; ix < Nx; ix++) {
+			// update *W
+			omega(P_c, U_c, W, iy, ix, AXIS_X);
+			// update *dW
+			domega(Px_c, Ux_c, dW, iy, ix, AXIS_X);
+			// update $Wn, $dWn
+			reconstruct(W, dW, Wn, dWn, iy, ix);
+			// update $Pn, $Un, $dPn, $dUn
+			backward(P_n, U_n, Px_n, Ux_n, Wn, dWn, iy, ix);
+
+			omega(Py_c, Uy_c, W, iy, ix, AXIS_X);
+			domega(Pxy_c, Uxy_c, dW, iy, ix, AXIS_X);
+			reconstruct(W, dW, Wn, dWn, iy, ix);
+			backward(Py_n, Uy_n, Pxy_n, Uxy_n, Wn, dWn, iy, ix);
 		}	
 	}
+
 	update();
 	//printf("%lf\t", Pxy_n[20][20]);
+	/*
 	// Y-step
-	for (ix = 0; ix < Nx; ix++) {
+#pragma omp barrier
+	for (ix = start; ix < Nx; ix += stride) {
 		for (iy = 0; iy < Ny; iy++) {
-			omega(P_c, V_c, iy, ix, AXIS_Y);
-			domega(Px_c, Vx_c, iy, ix, AXIS_Y);
-			reconstruct(iy, ix);
-			backward(P_n, V_n, Px_n, Vx_n, iy, ix);
+			omega(P_c, V_c, W, iy, ix, AXIS_Y);
+			domega(Px_c, Vx_c, dW, iy, ix, AXIS_Y);
+			reconstruct(W, dW, Wn, dWn, iy, ix);
+			backward(P_n, V_n, Px_n, Vx_n, Wn, dWn, iy, ix);
+			
 
-			omega(Py_c, Vy_c, iy, ix, AXIS_Y);
-			domega(Pxy_c, Vxy_c, iy, ix, AXIS_Y);
-			reconstruct(iy, ix);
-			backward(Py_n, Vy_n, Pxy_n, Vxy_n, iy, ix);
+			omega(Py_c, Vy_c, W, iy, ix, AXIS_Y);
+			domega(Pxy_c, Vxy_c, dW, iy, ix, AXIS_Y);
+			reconstruct(W, dW, Wn, dWn, iy, ix);
+			backward(Py_n, Vy_n, Pxy_n, Vxy_n, Wn, dWn, iy, ix);
+
 			//printf("%lf\t%lf\t%lf\t%lf\n", P_n[iy][ix], V_n[iy][ix], Px_n[iy][ix], Vx_n[iy][ix]);
 			//printf("%lf\t%lf\t%lf\t%lf\n", Py_n[iy][ix], Vy_n[iy][ix], Pxy_n[iy][ix], Vxy_n[iy][ix]);
+			//printf("%lf\t%lf\t%lf\t%lf\n", P_n[iy][ix], U_n[iy][ix], Px_n[iy][ix], Ux_n[iy][ix]);
+			//printf("%lf\t%lf\t%lf\t%lf\n", Py_n[iy][ix], Uy_n[iy][ix], Pxy_n[iy][ix], Uxy_n[iy][ix]);
 		}
 	}
+
 	update();
+	*/
+	free(W);
+	free(dW);
+	free(Wn);
+	free(dWn);
 	//printf("%lf\n", Pxy_n[20][20]);
 }
 
@@ -194,63 +242,69 @@ void singleStep(void) {
 #define xidxL (ix == 0 ? (Nx - 1) : (ix - 1))
 #define xidxR (ix == (Nx - 1) ? 0 : (ix + 1))
 
-void omega(double **P_c, double **U_c, int iy, int ix, int axis){
+void omega(double **P_c, double **U_c, double *W, int iy, int ix, int axis){
 	double Z_l, Z_r;
+	Z_l = C[iy][ix] * Ro[iy][ix];
+	Z_r = C[iy][ix] * Ro[iy][ix];
 	if (axis == AXIS_X){
-		Z_l = C[iy][ix] * Ro[iy][ix];
-		Z_r = C[iy][ix] * Ro[iy][ix];
-		Wpls[0] = (P_c[iy][xidxL] + Z_l * U_c[iy][xidxL]) / (2 * Z_l);
-		Wpls[1] = (P_c[iy][ix] + Z_l * U_c[iy][ix]) / (2 * Z_l);
+		W[0] = (P_c[iy][xidxL] + Z_l * U_c[iy][xidxL]) / (2 * Z_l);
+		W[1] = (P_c[iy][ix] + Z_l * U_c[iy][ix]) / (2 * Z_l);
 
-		Wmns[0] = (-P_c[iy][ix] + Z_r * U_c[iy][ix]) / (2 * Z_r);
-		Wmns[1] = (-P_c[iy][xidxR] + Z_r * U_c[iy][xidxR]) / (2 * Z_r);
+		W[2] = (-P_c[iy][ix] + Z_r * U_c[iy][ix]) / (2 * Z_r);
+		W[3] = (-P_c[iy][xidxR] + Z_r * U_c[iy][xidxR]) / (2 * Z_r);
 		//printf("%lf\t%lf\n", Wmns[0], Wmns[1]);
 	}
 	else {
-		Z_l = C[iy][ix] * Ro[iy][ix];
-		Z_r = C[iy][ix] * Ro[iy][ix];
-		Wpls[0] = (P_c[yidxL][ix] + Z_l * U_c[yidxL][ix]) / (2 * Z_l);
-		Wpls[1] = (P_c[iy][ix] + Z_l * U_c[iy][ix]) / (2 * Z_l);
+		W[0] = (P_c[yidxL][ix] + Z_l * U_c[yidxL][ix]) / (2 * Z_l);
+		W[1] = (P_c[iy][ix] + Z_l * U_c[iy][ix]) / (2 * Z_l);
 
-		Wmns[0] = (-P_c[iy][ix] + Z_r * U_c[iy][ix]) / (2 * Z_r);
-		Wmns[1] = (-P_c[yidxR][ix] + Z_r * U_c[yidxR][ix]) / (2 * Z_r);
+		W[2] = (-P_c[iy][ix] + Z_r * U_c[iy][ix]) / (2 * Z_r);
+		W[3] = (-P_c[yidxR][ix] + Z_r * U_c[yidxR][ix]) / (2 * Z_r);
 		//printf("%lf\t%lf\n", Wmns[0], Wmns[1]);
 	}
 }
 
-void domega(double **dP_c, double **dU_c, int iy, int ix, int axis){
+void domega(double **dP_c, double **dU_c, double *dW, int iy, int ix, int axis){
 	double Z_l, Z_r;
-
+	Z_l = C[iy][ix] * Ro[iy][ix];
+	Z_r = C[iy][ix] * Ro[iy][ix];
 	if (axis == AXIS_X){
-		Z_l = C[iy][ix] * Ro[iy][ix];
-		Z_r = C[iy][ix] * Ro[iy][ix];
-		dWpls[0] = (dP_c[iy][xidxL] + Z_l * dU_c[iy][xidxL]) / (2 * Z_l);
-		dWpls[1] = (dP_c[iy][ix] + Z_l * dU_c[iy][ix]) / (2 * Z_l);
+		dW[0] = (dP_c[iy][xidxL] + Z_l * dU_c[iy][xidxL]) / (2 * Z_l);
+		dW[1] = (dP_c[iy][ix] + Z_l * dU_c[iy][ix]) / (2 * Z_l);
 
-		dWmns[0] = (-dP_c[iy][ix] + Z_r * dU_c[iy][ix]) / (2 * Z_r);
-		dWmns[1] = (-dP_c[iy][xidxR] + Z_r * dU_c[iy][xidxR]) / (2 * Z_r);
-		//printf("%lf\t%lf\n", dWmns[0], dWmns[1]);
+		dW[2] = (-dP_c[iy][ix] + Z_r * dU_c[iy][ix]) / (2 * Z_r);
+		dW[3] = (-dP_c[iy][xidxR] + Z_r * dU_c[iy][xidxR]) / (2 * Z_r);
+		//printf("%lf\t%lf\n", Wmns[0], Wmns[1]);
 	}
 	else {
-		Z_l = C[iy][ix] * Ro[iy][ix];
-		Z_r = C[iy][ix] * Ro[iy][ix];
-		dWpls[0] = (dP_c[yidxL][ix] + Z_l * dU_c[yidxL][ix]) / (2 * Z_l);
-		dWpls[1] = (dP_c[iy][ix] + Z_l * dU_c[iy][ix]) / (2 * Z_l);
+		dW[0] = (dP_c[yidxL][ix] + Z_l * dU_c[yidxL][ix]) / (2 * Z_l);
+		dW[1] = (dP_c[iy][ix] + Z_l * dU_c[iy][ix]) / (2 * Z_l);
 
-		dWmns[0] = (-dP_c[iy][ix] + Z_r * dU_c[iy][ix]) / (2 * Z_r);
-		dWmns[1] = (-dP_c[yidxR][ix] + Z_r * dU_c[yidxR][ix]) / (2 * Z_r);
+		dW[2] = (-dP_c[iy][ix] + Z_r * dU_c[iy][ix]) / (2 * Z_r);
+		dW[3] = (-dP_c[yidxR][ix] + Z_r * dU_c[yidxR][ix]) / (2 * Z_r);
 		//printf("%lf\t%lf\n", dWmns[0], dWmns[1]);
 	}
 }
 
-void reconstruct(int iy, int ix){
+void reconstruct(double *W, double *dW, double *Wn, double *dWn, int iy, int ix){
 	// coefs[5] = { x, a, b, c, d }
 	double coefs1[5], coefs2[5];
+	double stencil_values_w1[S + 1];
+	double stencil_values_w2[S + 1];
+	double stencil_Dvalues_w1[S + 1];
+	double stencil_Dvalues_w2[S + 1];
 
-	fillStencilValues();
+	unsigned int j;
+	for (j = 0; j < S + 1; j++) {
+		stencil_values_w2[j] = W[j];
+		stencil_Dvalues_w2[j] = dW[j];
 
-	interpolatedCoefs(stencil_values_w1, stencil_Dvalues_w1, RIGHT, iy, ix, coefs1);
+		stencil_values_w1[j] = W[j + S + 1];
+		stencil_Dvalues_w1[j] = dW[j + S + 1];
+	}
+
 	interpolatedCoefs(stencil_values_w2, stencil_Dvalues_w2, LEFT, iy, ix, coefs2);
+	interpolatedCoefs(stencil_values_w1, stencil_Dvalues_w1, RIGHT, iy, ix, coefs1);
 
 	Wn[0] = interpolatedValue(coefs2, ZERO); // W_pls
 	Wn[1] = interpolatedValue(coefs1, ZERO); // W_mns
@@ -259,27 +313,20 @@ void reconstruct(int iy, int ix){
 	dWn[1] = interpolatedValue(coefs1, FIRST); // dW_mns
 }
 
-void backward(double **Pn, double **Un, double **dPn, double **dUn, int iy, int ix) {
+void backward(double **Pn, double **Un, double **dPn, double **dUn, double *Wn, double *dWn, int iy, int ix) {
 	double Z_l, Z_r;
 	Z_l = C[iy][ix] * Ro[iy][ix];
 	Z_r = C[iy][ix] * Ro[iy][ix];
 
 	Pn[iy][ix] = 2.0 * Z_r * Z_l * (Wn[0] - Wn[1]) / (Z_l + Z_r);
 	Un[iy][ix] = 2.0 * (Z_l * Wn[0] + Z_r * Wn[1]) / (Z_l + Z_r);
+	//printf("%lf\t%lf\n", Wn[0], Wn[1]);
 
-	dPn[iy][ix] = 2.0 * (C[iy][ix] * Z_l * dWn[0] - C[iy][ix] * Z_r * dWn[1]) / (Z_l + Z_r);
-	dUn[iy][ix] = 2.0 * (C[iy][ix] * Z_l * Z_r * dWn[0] + C[iy][ix] * Z_l * Z_r * dWn[1]) / (Z_l + Z_r);
-}
+	dPn[iy][ix] = 2.0 * Z_r * Z_l * (dWn[0] - dWn[1]) / (Z_l + Z_r);
+	dUn[iy][ix] = 2.0 * (Z_l * dWn[0] + Z_r * dWn[1]) / (Z_l + Z_r);
 
-void fillStencilValues() {
-	unsigned int j;
-	for (j = 0; j < S + 1; j++) {
-		stencil_values_w2[j] = Wpls[j];
-		stencil_Dvalues_w2[j] = dWpls[j];
-
-		stencil_values_w1[j] = Wmns[j];
-		stencil_Dvalues_w1[j] = dWmns[j];
-	}
+	//dPn[iy][ix] = 2.0 * (C[iy][ix] * Z_l * dWn[0] - C[iy][ix] * Z_r * dWn[1]) / (Z_l + Z_r);
+	//dUn[iy][ix] = 2.0 * (C[iy][ix] * Z_l * Z_r * dWn[0] + C[iy][ix] * Z_l * Z_r * dWn[1]) / (Z_l + Z_r);
 }
 
 void interpolatedCoefs(double *u, double *du, int dir, int iy, int ix, double *coefs) {
@@ -302,8 +349,10 @@ void interpolatedCoefs(double *u, double *du, int dir, int iy, int ix, double *c
 
 void update() {
 	int ix, iy;
-	for (iy = 0; iy < Ny; iy++) {
-		//printf("%lf\n", P_n[iy][0]);
+	int start = omp_get_thread_num();
+	int stride = omp_get_num_threads();
+
+	for (iy = start; iy < Ny; iy += stride) {
 		for (ix = 0; ix < Nx; ix++) {
 			P_c[iy][ix] = P_n[iy][ix];
 			U_c[iy][ix] = U_n[iy][ix];
@@ -343,7 +392,8 @@ void debugGnuplotFileName(char *filename1, char *filename2){
 	int ix, iy;
 	for (iy = 0; iy < Ny; iy++) {
 		for (ix = 0; ix < Nx; ix++) {
-			fprintf(pFileP, "%.12lf\t%.12lf\t%.12lf\n", -(LENGTHx / 2.0) + hx * ix, -(LENGTHx / 2.0) + hy * iy, P_c[iy][ix]);
+			//if (abs(P_c[iy][ix]) > 1E-5) 
+				fprintf(pFileP, "%.12lf\t%.12lf\t%.12lf\n", -(LENGTHx / 2.0) + hx * ix, -(LENGTHx / 2.0) + hy * iy, P_c[iy][ix]);
 		}
 	}
 	fclose(pFileP);
@@ -470,53 +520,112 @@ void freeArrays(){
 }
 
 
-/*
+
 // CIR
 void singleStepCIR(void) {
-	int ind = 0;
+	int iy, ix;
+	int start = omp_get_thread_num();
+	int stride = omp_get_num_threads();
+	double stencil_values_w1[S + 1];
+	double stencil_values_w2[S + 1];
 
-	for (ind = 0; ind < N; ind++) {
-		double Wpls_n, Wmns_n;
-		double Z_l, Z_r;
+	double *W = (double *)malloc(4 * sizeof(double));
 
-		if (ind == 0){
-			Z_l = C[N - 1] * Ro[N - 1];
+	// X-step
+	for (iy = start; iy < Ny; iy += stride) {
+		for (ix = 0; ix < Nx; ix++) {
+			double Wpls_n, Wmns_n;
+			double Z_l, Z_r;
+			unsigned int j;
+
+			Z_l = C[iy][ix] * Ro[iy][ix];
+			Z_r = C[iy][ix] * Ro[iy][ix];
+
+			omega(P_c, U_c, W, iy, ix, AXIS_X);
+
+			for (j = 0; j < S + 1; j++) {
+				stencil_values_w2[j] = W[j];
+
+				stencil_values_w1[j] = W[j + S + 1];
+			}
+
+			Wpls_n = interpolatedValueCIR(stencil_values_w2, LEFT, iy, ix);
+			Wmns_n = interpolatedValueCIR(stencil_values_w1, RIGHT, iy, ix);
+
+			P_n[iy][ix] = 2.0 * Z_r * Z_l * (Wpls_n - Wmns_n) / (Z_l + Z_r);
+			U_n[iy][ix] = 2.0 * (Z_l * Wpls_n + Z_r * Wmns_n) / (Z_l + Z_r);
 		}
-		else {
-			Z_l = C[ind - 1] * Ro[ind - 1];
-		}
-		Z_r = C[ind] * Ro[ind];
-
-		toInvariants(ind, Z_l, Z_r);
-		
-		fillStencilValues(ind);
-
-		Wmns_n = interpolatedValueCIR(stencil_values_w1, RIGHT, ind);
-		Wpls_n = interpolatedValueCIR(stencil_values_w2, LEFT, ind);
-
-		P_n[ind] = 2.0 * Z_r * Z_l * (Wpls_n - Wmns_n) / (Z_l + Z_r);
-		U_n[ind] = 2.0 * (Z_l * Wpls_n + Z_r * Wmns_n) / (Z_l + Z_r);
 	}
 
-	for (ind = 0; ind < N; ind++){
-		P_c[ind] = P_n[ind];
-		U_c[ind] = U_n[ind];
+#pragma omp barrier
+
+#pragma omp single
+	{
+		for (iy = 0; iy < Ny; iy++) {
+			for (ix = 0; ix < Nx; ix++) {
+				P_c[iy][ix] = P_n[iy][ix];
+				U_c[iy][ix] = U_n[iy][ix];
+				V_c[iy][ix] = V_n[iy][ix];
+			}
+		}
 	}
+
+	// Y-step
+	for(ix = start; ix < Nx; ix += stride) {
+		for (iy = 0; iy < Ny; iy++) {
+			double Wpls_n, Wmns_n;
+			double Z_l, Z_r;
+			unsigned int j;
+
+			Z_l = C[iy][ix] * Ro[iy][ix];
+			Z_r = C[iy][ix] * Ro[iy][ix];
+
+			omega(P_c, V_c, W, iy, ix, AXIS_Y);
+
+			for (j = 0; j < S + 1; j++) {
+				stencil_values_w2[j] = W[j];
+
+				stencil_values_w1[j] = W[j + S + 1];
+			}
+
+			Wpls_n = interpolatedValueCIR(stencil_values_w2, LEFT, iy, ix);
+			Wmns_n = interpolatedValueCIR(stencil_values_w1, RIGHT, iy, ix);
+
+			P_n[iy][ix] = 2.0 * Z_r * Z_l * (Wpls_n - Wmns_n) / (Z_l + Z_r);
+			V_n[iy][ix] = 2.0 * (Z_l * Wpls_n + Z_r * Wmns_n) / (Z_l + Z_r);
+			//printf("%lf\t%lf\n", P_n[iy][ix], U_n[iy][ix]);
+		}
+	}
+
+#pragma omp barrier
+
+#pragma omp single
+	{
+		for (iy = 0; iy < Ny; iy++) {
+			for (ix = 0; ix < Nx; ix++) {
+				P_c[iy][ix] = P_n[iy][ix];
+				U_c[iy][ix] = U_n[iy][ix];
+				V_c[iy][ix] = V_n[iy][ix];
+			}
+		}
+	}
+
+	free(W);
 }
 
-double interpolatedValueCIR(double *u, int dir, int ind) {
+double interpolatedValueCIR(double *u, int dir, int iy, int ix) {
 	double a, b, x;
 	if (dir == LEFT){
-		a = (u[1] - u[0]) / h;
+		a = (u[1] - u[0]) / hx;
 		b = u[1];
-		x = -C[ind == 0 ? N - 1 : ind - 1] * tau;
+		x = -C[iy][ix] * taux;
 	}
 	else {
-		a = (u[1] - u[0]) / h;
+		a = (u[1] - u[0]) / hx;
 		b = u[0];
-		x = C[ind] *  tau;
+		x = C[iy][ix] *  taux;
 	}
 	double val = a * x + b;
 	return val;
 }
-*/
+
