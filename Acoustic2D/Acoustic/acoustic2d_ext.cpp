@@ -117,11 +117,11 @@ void init(void) {
 			// nodes
 			P_c[iy][ix] = func(x, y);
 			U_c[iy][ix] = P_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
-			V_c[iy][ix] = P_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
+			V_c[iy][ix] = 0.0;
 			V_n[iy][ix] = V_c[iy][ix];
 
 			Px_c[iy][ix] = func_x(x, y);
-			Ux_c[iy][ix] = 0.0;// Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
+			Ux_c[iy][ix] = Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
 			Vx_c[iy][ix] = 0.0;//Px_c[iy][ix] / (C[iy][ix] * Ro[iy][ix]);
 			Vx_n[iy][ix] = Vx_c[iy][ix];
 
