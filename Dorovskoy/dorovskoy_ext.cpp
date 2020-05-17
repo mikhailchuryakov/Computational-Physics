@@ -52,8 +52,6 @@ double dm = sqrt(gamma + sqrt(betta)) * (sqrt(betta) - gamma) * (alpha * sqrt(be
 
 // template
 #define S 1
-//int stencil_l[S + 1] = { -1, 0 };
-//int stencil_r[S + 1] = { 0, 1 };
 double stencil_values_w1[S + 1];
 double stencil_values_w2[S + 1];
 double stencil_values_w3[S + 1];
@@ -72,28 +70,10 @@ double stencil_Dvalues_w4[S + 1];
 
 #define eps 1E-6
 double func(double x) {
-	/*
-	if (-0.7 - x <= eps && -0.2 - x >= eps){
-		return 1.0 * pow(sin(2.0 * M_PI *(x - 0.3)), 4.0);
-	}
-	else {
-		return 0;
-	}
-	*/
-	//return exp(-100 * (x + 0.5)*(x + 0.5));
 	return exp(-400.0 * (x)*(x));
 }
 
 double dfunc(double x) {
-	/*
-	if (-0.7 - x <= eps && -0.2 - x >= eps){
-		return 8.0 * M_PI * pow(sin(2.0 * M_PI *(x - 0.3)), 3.0) * cos(2.0 * M_PI *(x - 0.3));
-	}
-	else {
-		return 0;
-	}
-	*/
-	//return -200 * (x + 0.5) * exp(-100 * (x + 0.5)*(x + 0.5));
 	return -800.0 * x * exp(-400.0 * (x)*(x));
 }
 
@@ -101,37 +81,6 @@ int main() {
 	unsigned int step, del;
 	char str[20];
 	del = 25;
-
-	printf("it started\n");
-	printf("%lf\n", tau);
-	printf("%lf\n", sqrt(psi));
-	printf("%lf\n", betta);
-	printf("%lf\n", gamma);
-	printf("%lf\n", omega);
-	printf("%lf\n", delta);
-	printf("%lf\n", epsilon);
-	printf("%lf\n", phi);
-	printf("\n");
-	printf("%lf\n", lambda1);
-	printf("%lf\n", lambda2);
-	printf("%lf\n", lambda3);
-	printf("%lf\n", lambda4);
-	printf("\n");
-	printf("%.12lf\n", a1);
-	printf("%.12lf\n", a2);
-	printf("%.12lf\n", b1);
-	printf("%.12lf\n", b2);
-	printf("%lf\n", c1);
-	printf("%lf\n", c2);
-	printf("\n");
-	printf("%lf\n", a);
-	printf("%lf\n", am);
-	printf("%lf\n", b);
-	printf("%lf\n", d);
-	printf("%lf\n", dm);
-	printf("%lf\n", c);
-	printf("%lf\n", cm);
-	printf("\n");
 
 	for (N = 400; N <= 401; N = N * 2) {
 		createArrays();
@@ -167,12 +116,12 @@ void init(void) {
 		V_s_c[ind] = func(x);
 		V_f_c[ind] = func(x);
 		H_c[ind] = func(x);
-		P_c[ind] = func(x);// (V_f_c[ind] * (d + dm) - V_s_c[ind] * (cm + c) - 2.0*b*H_c[ind]) / (am - a);
+		P_c[ind] = func(x);
 
 		dV_s_c[ind] = dfunc(x);
 		dV_f_c[ind] = dfunc(x);
 		dH_c[ind] = dfunc(x);
-		dP_c[ind] = dfunc(x);// (dV_f_c[ind] * (d + dm) - dV_s_c[ind] * (cm + c) - 2.0*b*dH_c[ind]) / (am - a);
+		dP_c[ind] = dfunc(x);
 
 	}
 }
