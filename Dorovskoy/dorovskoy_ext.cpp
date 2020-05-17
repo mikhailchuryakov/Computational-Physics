@@ -44,7 +44,7 @@ double cm = sqrt(gamma + sqrt(betta)) * (delta * delta - alpha*alpha*betta) / (4
 double d = sqrt(gamma - sqrt(betta)) * (gamma + sqrt(betta)) * (alpha * sqrt(betta) - delta) / (4.0 * sqrt(6.0)*sqrt(betta)*rho_s*(alpha*gamma - delta));
 double dm = sqrt(gamma + sqrt(betta)) * (sqrt(betta) - gamma) * (alpha * sqrt(betta) + delta) / (4.0 * sqrt(6.0)*sqrt(betta)*rho_s*(alpha*gamma - delta));
 
-#define LENGTH 4000.0
+#define LENGTH 2.0
 
 #define k 0.2
 #define h (LENGTH / (N))
@@ -66,7 +66,7 @@ double stencil_Dvalues_w4[S + 1];
 #define RIGHT 1
 //
 
-#define M (((N * 0.45 * h / 2.0) / 450.0 + (N * 0.5 * h / 2.0) / 2000.0) / tauT)
+#define M ((N * 0.25 * h / 2000.0) / tauT)
 //#define M 0.0
 
 
@@ -81,7 +81,7 @@ double func(double x) {
 	}
 	*/
 	//return exp(-100 * (x + 0.5)*(x + 0.5));
-	return 1 * exp(-400.0 * (x)*(x));
+	return exp(-400.0 * (x)*(x));
 }
 
 double dfunc(double x) {
@@ -133,11 +133,11 @@ int main() {
 	printf("%lf\n", cm);
 	printf("\n");
 
-	for (N = 800; N <= 801; N = N * 2) {
+	for (N = 400; N <= 401; N = N * 2) {
 		createArrays();
 		init();
 
-		printf("%d\t%lf\t%f\t%lf\t%lf\n", N, h, 1.0 / h, tauT, M);
+		printf("%d\t%lf\t%f\t%.12lf\t%lf\n", N, h, 1.0 / h, tauT, M);
 		for (step = 0; step < M; step++) {
 			
 			if ((step % del) == 0) {
@@ -167,12 +167,12 @@ void init(void) {
 		V_s_c[ind] = func(x);
 		V_f_c[ind] = func(x);
 		H_c[ind] = func(x);
-		P_c[ind] = func(x);
+		P_c[ind] = func(x);// (V_f_c[ind] * (d + dm) - V_s_c[ind] * (cm + c) - 2.0*b*H_c[ind]) / (am - a);
 
 		dV_s_c[ind] = dfunc(x);
 		dV_f_c[ind] = dfunc(x);
 		dH_c[ind] = dfunc(x);
-		dP_c[ind] = dfunc(x);
+		dP_c[ind] = dfunc(x);// (dV_f_c[ind] * (d + dm) - dV_s_c[ind] * (cm + c) - 2.0*b*dH_c[ind]) / (am - a);
 
 	}
 }
@@ -188,22 +188,24 @@ void singleStep(void) {
 		double W1n, W2n, W3n, W4n;
 		double dW1n, dW2n, dW3n, dW4n;
 
+		// update W?, dW?
 		toInvariants(ind);
 		toDInvariants(ind);
 
-		fillStencilValues(ind);
-
-		interpolatedCoefs(stencil_values_w1, stencil_Dvalues_w1, lambda1, LEFT, ind, coefs1);
-		interpolatedCoefs(stencil_values_w2, stencil_Dvalues_w2, lambda2, RIGHT, ind, coefs2);
-		interpolatedCoefs(stencil_values_w3, stencil_Dvalues_w3, lambda3, LEFT, ind, coefs3);
-		interpolatedCoefs(stencil_values_w4, stencil_Dvalues_w4, lambda4, RIGHT, ind, coefs4);
+		interpolatedCoefs(W1, dW1, lambda1, LEFT, ind, coefs1);
+		interpolatedCoefs(W2, dW2, lambda2, RIGHT, ind, coefs2);
+		interpolatedCoefs(W3, dW3, lambda3, LEFT, ind, coefs3);
+		interpolatedCoefs(W4, dW4, lambda4, RIGHT, ind, coefs4);
 
 		W1n = interpolatedValue(coefs1, ZERO);
 		dW1n = interpolatedValue(coefs1, FIRST);
+
 		W2n = interpolatedValue(coefs2, ZERO);
 		dW2n = interpolatedValue(coefs2, FIRST);
+
 		W3n = interpolatedValue(coefs3, ZERO);
 		dW3n = interpolatedValue(coefs3, FIRST);
+
 		W4n = interpolatedValue(coefs4, ZERO);
 		dW4n = interpolatedValue(coefs4, FIRST);
 
@@ -232,7 +234,7 @@ void singleStep(void) {
 }
 
 #define lind (ind ==  0 ? (N - 1) : (ind - 1))
-#define rind (ind ==  N - 1 ? 0 : (ind + 1))
+#define rind (ind == (N - 1) ? 0 : (ind + 1))
 void toInvariants(int ind){
 	W1[0] = a * P_c[lind] - b * H_c[lind] + c * V_s_c[lind] - d * V_f_c[lind];
 	W3[0] = am * P_c[lind] + b * H_c[lind] - cm * V_s_c[lind] + dm * V_f_c[lind];
@@ -266,10 +268,13 @@ void fillStencilValues(int ind) {
 	for (j = 0; j < S + 1; j++) {
 		stencil_values_w1[j] = W1[j];
 		stencil_Dvalues_w1[j] = dW1[j];
+
 		stencil_values_w2[j] = W2[j];
 		stencil_Dvalues_w2[j] = dW2[j];
+
 		stencil_values_w3[j] = W3[j];
 		stencil_Dvalues_w3[j] = dW3[j];
+
 		stencil_values_w4[j] = W4[j];
 		stencil_Dvalues_w4[j] = dW4[j];
 	}

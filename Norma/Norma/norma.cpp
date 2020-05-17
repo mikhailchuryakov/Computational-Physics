@@ -28,10 +28,10 @@ int main() {
 	FILE *pFile;
 	pFile = fopen("result.txt", "a");
 
-	for (N = 800; N <= 801; N = N * 2) {
+	for (N = 100; N <= 3201; N = N * 2) {
 		createArrays();
 
-		sprintf(str, "U%d.dat", (int) N);
+		sprintf(str, "P%d.dat", (int) N);
 		printf("%s\n", str);
 
 		initializeArrays(str);
@@ -97,8 +97,9 @@ void solveAnalitic(void){
 			A[ind] = 0;
 		}
 		*/
-		x = -1 + ind * h;
+		x = -1.0 + ind * h;
 		//A[ind] = -1.0 / 5.0 * exp(-100 * (x + 0.5)*(x + 0.5)) + 2.0 / 2.5 * exp(-400 * (x - 0.25)*(x - 0.25));
+		/*
 		if ((x >= -0.5 && x <= -0.2) || (x >= 0.2 && x <= 0.5)) {
 			A[ind] = 0.6;
 		}
@@ -108,6 +109,9 @@ void solveAnalitic(void){
 		else {
 			A[ind] = 1.0;
 		}
+		*/
+		A[ind] = 0.5088899240798759 *exp(-400.0 * pow(-0.5 + x, 2.0)) - 0.008889568928092085 * exp(-400.0 * pow(-0.1125 + x, 2.0)) -
+			0.008889562612751877 * exp(-400.0 * pow(0.1125 + x, 2.0)) + 0.5088892074609678 * exp(-400.0 * pow(0.5 + x, 2.0));
 	}
 }
 
